@@ -1,0 +1,47 @@
+- hosts: master
+  become: yes
+  tasks:
+    - name: Init docker user
+      shell: usermod -aG docker $USER
+
+    - name: Remove swap
+      shell: swapoff -a
+    
+    - name: Initiate cluster
+      shell: kubeadm init --pod-network-cidr=10.244.0.0/16 >> initialized.txt
+      args:
+        chdir: $HOME
+        creates: initialized.txt
+    
+    - name: Enabled Docker
+      service:
+        name: docker
+        enabled: true
+    
+    - name: Enabled Docker
+      service:
+        name: docker
+        state: restarted
+
+    - name: Create .kube directory
+      become: yes
+      become_user: master
+      file:
+        path: $HOME/.kube
+        state: directory
+        mode: 0755
+    
+    - name: copy admin.conf to kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/master/.kube/config
+        remote_src: yes
+        owner: master
+    
+    - name: Install pod network
+      become: yes
+      become_user: master
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml >> pod_network_setup.txt
+      args:
+        chdir: $HOME
+        creates: pod_network_setup.txt
